@@ -1,0 +1,35 @@
+# Dépendances
+node_modules/
+.npm
+
+# Build
+dist/
+dist-ssr/
+
+# Variables d'environnement — NE JAMAIS ENVOYER SUR GITHUB
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Netlify
+.netlify/
+
+# Éditeur
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Système
+.DS_Store
+Thumbs.db
+*.log
+
+# PWA
+sw.js
+workbox-*.js
