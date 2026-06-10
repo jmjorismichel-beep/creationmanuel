@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Save, Eye, ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp, Edit3, ShieldCheck, Loader2 } from 'lucide-react'
+import { Save, Eye, ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp,
+         Edit3, ShieldCheck, Loader2, Clock, SplitSquareHorizontal } from 'lucide-react'
 import { getManual, saveManual, saveVersion } from '../lib/db.js'
 import { applyRevisionToManual, checkManualConsistency } from '../lib/manualUtils.js'
 import ExportButtons from '../components/ExportButtons.jsx'
@@ -8,6 +9,9 @@ import RevisionAssistant from '../components/RevisionAssistant.jsx'
 import VersionHistory from '../components/VersionHistory.jsx'
 import OnlineStatus from '../components/OnlineStatus.jsx'
 import OfflineQueue from '../components/OfflineQueue.jsx'
+import ManualPreview from '../components/ManualPreview.jsx'
+
+const AUTOSAVE_DELAY = 30000 // 30 secondes
 
 function SectionEditor({ section, onChange, onDelete }) {
   const [open, setOpen] = useState(false)
@@ -127,14 +131,17 @@ export default function Editor() {
   const { id }   = useParams()
   const navigate = useNavigate()
 
-  const [manual, setManual]       = useState(null)
-  const [loading, setLoading]     = useState(true)
-  const [saved, setSaved]         = useState(false)
-  const [isOnline, setIsOnline]   = useState(navigator.onLine)
-  const [checking, setChecking]   = useState(false)
+  const [manual, setManual]           = useState(null)
+  const [loading, setLoading]         = useState(true)
+  const [saved, setSaved]             = useState(false)
+  const [autoSaveStatus, setAutoSaveStatus] = useState(null) // null | 'saving' | 'saved'
+  const [isOnline, setIsOnline]       = useState(navigator.onLine)
+  const [checking, setChecking]       = useState(false)
   const [checkAlerts, setCheckAlerts] = useState([])
-  const [showCheck, setShowCheck] = useState(false)
-  const [activeTab, setActiveTab] = useState('edit') // 'edit' | 'assist' | 'history'
+  const [showCheck, setShowCheck]     = useState(false)
+  const [activeTab, setActiveTab]     = useState('edit') // 'edit' | 'preview' | 'assist' | 'history'
+  const autoSaveTimer = useRef(null)
+  const manualRef     = useRef(null)
 
   useEffect(() => {
     const on  = () => setIsOnline(true)
@@ -143,6 +150,22 @@ export default function Editor() {
     window.addEventListener('offline', off)
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
+
+  // Autosave : déclenché 30s après la dernière modification
+  useEffect(() => {
+    if (!manual) return
+    manualRef.current = manual
+    if (saved) return // déjà sauvegardé manuellement
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(async () => {
+      if (!manualRef.current) return
+      setAutoSaveStatus('saving')
+      await saveManual({ ...manualRef.current, updatedAt: new Date().toISOString() })
+      setAutoSaveStatus('saved')
+      setTimeout(() => setAutoSaveStatus(null), 3000)
+    }, 30000) // 30 secondes
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }
+  }, [manual, saved])
 
   useEffect(() => {
     if (id) {
@@ -277,6 +300,16 @@ export default function Editor() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {saved && <span className="text-sm text-green-600 font-medium">✓ Sauvegardé</span>}
+          {!saved && autoSaveStatus === 'saving' && (
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <Loader2 size={12} className="animate-spin" /> Sauvegarde auto…
+            </span>
+          )}
+          {!saved && autoSaveStatus === 'saved' && (
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <Clock size={12} /> Auto-sauvegardé
+            </span>
+          )}
           <ExportButtons manual={manual} />
           <button onClick={handleSave} className="btn-primary text-sm">
             <Save size={14} /> Sauvegarder
@@ -288,9 +321,10 @@ export default function Editor() {
       </div>
 
       {/* Onglets */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
         {[
           { key: 'edit',    label: 'Édition' },
+          { key: 'preview', label: '👁 Aperçu live' },
           { key: 'assist',  label: 'Assistant IA' },
           { key: 'history', label: 'Historique' },
         ].map(tab => (
@@ -407,6 +441,16 @@ export default function Editor() {
           onApply={handleRevisionApply}
           isOnline={isOnline}
         />
+      )}
+
+      {/* ─── ONGLET APERÇU LIVE ─── */}
+      {activeTab === 'preview' && (
+        <div className="animate-slide-up">
+          <div className="mb-4 px-4 py-2 bg-brand/5 border border-brand/20 rounded-xl text-sm text-brand flex items-center gap-2">
+            <Eye size={14} /> Aperçu en temps réel — les modifications de l'onglet Édition apparaissent ici instantanément.
+          </div>
+          <ManualPreview manual={manual} />
+        </div>
       )}
 
       {/* ─── ONGLET HISTORIQUE ─── */}

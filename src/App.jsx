@@ -14,6 +14,7 @@ import Pricing from './routes/Pricing.jsx'
 import FAQ from './routes/FAQ.jsx'
 import Contact from './routes/Contact.jsx'
 import Help from './routes/Help.jsx'
+import ExerciseLibrary from './routes/ExerciseLibrary.jsx'
 
 export default function App() {
   return (
